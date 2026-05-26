@@ -1,0 +1,61 @@
+# ==========================================
+# DEPENDENCY DIRECTORIES (NODE.JS & RUST)
+# ==========================================
+node_modules/
+/src-tauri/target/
+
+# ==========================================
+# BUILD OUTPUTS & CODES
+# ==========================================
+/dist/
+/build/
+/out/
+.tauri/
+src-tauri/.tauri/
+
+# ==========================================
+# ENVIRONMENT VARIABLES & PRIVATE KEYS
+# ==========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+vidflow_api_keys
+vidflow_api_keys.json
+
+# ==========================================
+# VIDFLOW TEMPORARY MEDIA FILES (PREVENT GIT BLOAT)
+# ==========================================
+# Temporary rendering files
+*vidflow_temp_sub_*
+*_list.txt
+*_scene_*.mp4
+vidflow_temp_sub_*.txt
+
+# Local temporary directories if generated inside project structure
+**/Temp_Audio/
+**/Temp_Images/
+**/Temp_Videos_In/
+
+# ==========================================
+# LOGS & DIAGNOSTICS
+# ==========================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# IDE & SYSTEM CONFIGURATIONS
+# ==========================================
+.vscode/
+.idea/
+*.suo
+*.ntvsca
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db

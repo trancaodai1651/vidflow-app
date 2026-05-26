@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Thiết lập màu nền tổng thể và phông chữ */
+body {
+  @apply bg-[#0e0e11] text-[#f3f3f5] antialiased overflow-hidden;
+  /* Hình nền gradient tối mờ ảo (nếu bạn muốn giữ lại hiệu ứng này) */
+  background-image: radial-gradient(circle at 15% 50%, rgba(0, 206, 209, 0.05), transparent 25%),
+                    radial-gradient(circle at 85% 30%, rgba(0, 122, 255, 0.05), transparent 25%);
+}
+
+@layer utilities {
+  /* Hiệu ứng kính mờ (Glassmorphism) */
+  .glass-panel {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl;
+  }
+  
+  /* Các class Animation */
+  .animate-fade-in { animation: fadeIn 0.6s ease-out forwards; }
+  .animate-slide-up { animation: slideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  .animate-slide-right { animation: slideRight 0.5s ease-out forwards; }
+}
+
+/* Định nghĩa Keyframes cho Animation */
+@keyframes fadeIn { 
+  from { opacity: 0; } 
+  to { opacity: 1; } 
+}
+@keyframes slideUp { 
+  from { opacity: 0; transform: translateY(30px); } 
+  to { opacity: 1; transform: translateY(0); } 
+}
+@keyframes slideRight { 
+  from { opacity: 0; transform: translateX(-30px); } 
+  to { opacity: 1; transform: translateX(0); } 
+}
+
+/* Delay Utils để tạo hiệu ứng lần lượt (Staggered) */
+.delay-100 { animation-delay: 100ms; opacity: 0; }
+.delay-200 { animation-delay: 200ms; opacity: 0; }
+.delay-300 { animation-delay: 300ms; opacity: 0; }
+.delay-400 { animation-delay: 400ms; opacity: 0; }
+
+/* Tùy chỉnh thanh cuộn (Scrollbar) phong cách tối giản */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2c2c35;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00ced1;
+}
