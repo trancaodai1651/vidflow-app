@@ -1,158 +1,68 @@
-import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import Sidebar from './components/Sidebar';
+import React from 'react';
+import { useAppEngine } from './hooks/useAppEngine';
 import StudioView from './components/StudioView';
-import ApiView from './components/ApiView';
-import BrandView from './components/BrandView';
-
-// 🎯 ĐÃ ĐỒNG BỘ: Chuẩn hóa camelCase ăn khớp 100% với cấu trúc Serde v2 phía Rust Core
-interface Scene { 
-  sceneNumber: number; 
-  text: string; 
-  keyword: string; 
-  imagePrompt: string; 
-  duration: number; 
-}
-
-interface QueueItem {
-  id: string; title: string; subtitle: string; type: 'script' | 'url'; content: string;
-  outputPath: string; aspectRatio: '9:16' | '16:9' | '1:1'; resolution: '1080p' | '720p'; bitrate: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed'; progress: number; log: string;
-}
+import ApiView from './components/ApiView'; // 🎯 ỔN ĐỊNH: Gọi đúng linh kiện tách riêng của sếp
+import { Video, Settings } from 'lucide-react';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'studio' | 'api' | 'brand'>('studio');
-  const [apiKeys, setApiKeys] = useState({ gemini: '', openrouter: '', groq: '', openai: '' });
-  const [keySaveStatus, setKeySaveStatus] = useState('');
-
-  useEffect(() => {
-    const storedKeys = localStorage.getItem('vidflow_api_keys');
-    if (storedKeys) setApiKeys(JSON.parse(storedKeys));
-  }, []);
-
-  const handleSaveKeys = () => {
-    localStorage.setItem('vidflow_api_keys', JSON.stringify(apiKeys));
-    setKeySaveStatus('⚡ ĐÃ KHÓA BẢO MẬT CỤC BỘ!');
-    setTimeout(() => setKeySaveStatus(''), 3000);
-  };
-
-  const [activeTab, setActiveTab] = useState<'script' | 'url'>('script');
-  const [script, setScript] = useState('');
-  const [url, setUrl] = useState('');
-  const [provider, setProvider] = useState<keyof typeof apiKeys>('gemini');
-  const [outputPath, setOutputPath] = useState('C:\\VidFlow_Exports');
-  const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
-  const [resolution, setResolution] = useState<'1080p' | '720p'>('1080p');
-  const [bitrate, setBitrate] = useState('4M');
-  const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const addToQueue = () => {
-    const rawContent = activeTab === 'script' ? script : url;
-    if (!rawContent.trim()) return;
-    if (!apiKeys[provider]) {
-      alert(`Bạn phải vào cấu hình Key của ${provider.toUpperCase()} trước!`);
-      return;
-    }
-
-    let displayTitle = activeTab === 'url' ? 'ĐANG QUÉT TIÊU ĐỀ BÀI BÁO...' : rawContent.split('\n')[0].substring(0, 30);
-    try { if (activeTab === 'url') displayTitle = new URL(rawContent).pathname.split('/').pop()?.replace(/-/g, ' ').substring(0, 35) || displayTitle; } catch {}
-
-    setQueue([...queue, {
-      id: `task_${Date.now()}`, title: displayTitle.toUpperCase(), subtitle: activeTab === 'url' ? 'Trang báo điện tử' : 'Văn bản thủ công',
-      type: activeTab, content: rawContent, outputPath, aspectRatio, resolution, bitrate, status: 'pending', progress: 0, log: 'Đang xếp hàng chờ...'
-    }]);
-    if (activeTab === 'script') setScript(''); else setUrl('');
-  };
-
-  const processQueueSequentially = async () => {
-    if (isProcessing || queue.filter(q => q.status === 'pending').length === 0) return;
-    setIsProcessing(true);
-    const currentQueue = [...queue];
-
-    for (let i = 0; i < currentQueue.length; i++) {
-      if (currentQueue[i].status !== 'pending') continue;
-      currentQueue[i].status = 'processing';
-      currentQueue[i].log = '🧠 Đang phân tích nội dung bằng Gemini 3.5...';
-      setQueue([...currentQueue]);
-
-      try {
-        // 🎯 ĐÃ VÁ CHÍ MẠNG: Đón nhận đầy đủ bộ ba dữ liệu đầu ra từ Rust gồm cả tiêu đề tiếng Việt chuẩn có dấu
-        const result: { scenes: Scene[], scrapedImages: string[], title: string } = await invoke('process_script_with_ai', { 
-          script: currentQueue[i].content, apiKey: apiKeys[provider], provider 
-        });
-        
-        const { scenes, scrapedImages, title } = result;
-        
-        // 🎯 ĐÃ ĐỒNG BỘ: Ghi đè tiêu đề bài báo chính thức có dấu rõ ràng thay cho chuỗi slug không dấu cũ
-        if (title) {
-          currentQueue[i].title = title.toUpperCase();
-        } else if (scenes.length > 0 && scenes[0].text) {
-          currentQueue[i].title = scenes[0].text.substring(0, 30).toUpperCase() + '...';
-        }
-
-        let w = 1080; let h = 1920;
-        if (currentQueue[i].aspectRatio === '16:9') { w = currentQueue[i].resolution === '1080p' ? 1920 : 1280; h = currentQueue[i].resolution === '1080p' ? 1080 : 720; }
-        else if (currentQueue[i].aspectRatio === '9:16') { w = currentQueue[i].resolution === '1080p' ? 1080 : 720; h = currentQueue[i].resolution === '1080p' ? 1920 : 1280; }
-        else { w = currentQueue[i].resolution === '1080p' ? 1080 : 720; h = w; }
-
-        const mediaList = [];
-        for (let j = 0; j < scenes.length; j++) {
-          currentQueue[i].log = `⚡ Xử lý phân cảnh [${j+1}/${scenes.length}]: Tải tài nguyên đồ họa & Giọng nói...`;
-          setQueue([...currentQueue]);
-
-          let imageSource = scenes[j].imagePrompt; 
-          let isUrl = false;
-
-          // Điều phối luân phiên ảnh thật thời sự từ báo hoặc Prompt AI vẽ độc bản
-          if (currentQueue[i].type === 'url' && scrapedImages && scrapedImages[j]) {
-            imageSource = scrapedImages[j];
-            isUrl = true;
-          }
-
-          const img = await invoke('prepare_scene_image', { 
-            source: imageSource, isUrl, exportDir: currentQueue[i].outputPath, 
-            sceneId: scenes[j].sceneNumber, width: w, height: h 
-          });
-          
-          const aud = await invoke('generate_audio', { text: scenes[j].text, openaiKey: '', exportDir: currentQueue[i].outputPath, sceneId: scenes[j].sceneNumber });
-
-          // Khớp nối chính xác cấu trúc snake_case đầu vào của `SceneMedia` phía Rust Core
-          mediaList.push({ image_path: img, audio_path: aud, duration: scenes[j].duration, text: scenes[j].text });
-          currentQueue[i].progress = Math.floor(((j + 1) / scenes.length) * 80);
-          setQueue([...currentQueue]);
-        }
-
-        currentQueue[i].log = '🎬 FFMPEG Core đang xử lý hoạt cảnh Ken Burns lướt mịn và dập phụ đề...';
-        setQueue([...currentQueue]);
-
-        const finalPath = await invoke('render_video_project', { outputName: `VidFlow_${Date.now()}`, scenesMedia: mediaList, exportDir: currentQueue[i].outputPath, bitrate: currentQueue[i].bitrate, width: w, height: h });
-        currentQueue[i].status = 'completed'; currentQueue[i].progress = 100; currentQueue[i].log = `🎉 Xuất file: ${finalPath}`;
-        setQueue([...currentQueue]);
-      } catch (err) {
-        currentQueue[i].status = 'failed'; currentQueue[i].log = `❌ Lỗi: ${err}`;
-        setQueue([...currentQueue]);
-      }
-    }
-    setIsProcessing(false);
-  };
+  const engine = useAppEngine();
 
   return (
-    <div className="flex h-screen w-screen text-gray-100 font-sans overflow-hidden bg-gradient-to-br from-[#0c0d12] via-[#141622] to-[#08090d]">
-      <Sidebar activeView={activeView} setActiveView={setActiveView} />
-      <main className="flex-1 overflow-hidden relative">
-        {activeView === 'api' && <ApiView apiKeys={apiKeys} setApiKeys={setApiKeys} handleSaveKeys={handleSaveKeys} keySaveStatus={keySaveStatus} />}
-        {activeView === 'brand' && <BrandView />}
-        {activeView === 'studio' && (
+    <div className="h-screen w-screen flex bg-[#050508] text-white overflow-hidden font-sans selection:bg-[#00ced1]/30">
+      
+      {/* ================= THANH ĐIỀU HƯỚNG SIDEBAR ================= */}
+      <div className="w-16 flex flex-col items-center py-6 bg-black/40 border-r border-white/5 z-50 shrink-0">
+        <div className="w-10 h-10 bg-gradient-to-br from-[#00ced1] to-blue-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(0,206,209,0.4)] mb-8">
+          <Video size={20} className="text-white" />
+        </div>
+        <div className="flex-1 flex flex-col gap-4">
+          <button 
+            onClick={() => engine.setActiveView('studio')} 
+            className={`p-3 rounded-xl transition-all ${engine.activeView === 'studio' ? 'bg-white/10 text-[#00ced1]' : 'text-gray-500 hover:text-white hover:bg-white/5'}`} 
+            title="Cỗ máy sản xuất"
+          >
+            <Video size={22} />
+          </button>
+          <button 
+            onClick={() => engine.setActiveView('api')} 
+            className={`p-3 rounded-xl transition-all ${engine.activeView === 'api' ? 'bg-white/10 text-purple-400' : 'text-gray-500 hover:text-white hover:bg-white/5'}`} 
+            title="Trung tâm cấu hình API"
+          >
+            <Settings size={22} />
+          </button>
+        </div>
+      </div>
+
+      {/* ================= KHU VỰC HIỂN THỊ MÀN HÌNH CHÍNH ================= */}
+      <div className="flex-1 relative flex flex-col h-full overflow-hidden">
+        
+        {/* TAB 1: GIAO DIỆN PHÒNG STUDIO SẢN XUẤT */}
+        {engine.activeView === 'studio' && (
           <StudioView
-            provider={provider} setProvider={setProvider} apiKeys={apiKeys} setActiveView={setActiveView}
-            outputPath={outputPath} setOutputPath={setOutputPath} aspectRatio={aspectRatio} setAspectRatio={setAspectRatio}
-            resolution={resolution} setResolution={setResolution} bitrate={bitrate} setBitrate={setBitrate}
-            activeTab={activeTab} setActiveTab={setActiveTab} script={script} setScript={setScript} url={url} setUrl={setUrl}
-            addToQueue={addToQueue} queue={queue} isProcessing={isProcessing} processQueueSequentially={processQueueSequentially}
+            provider={engine.provider} setProvider={engine.setProvider} apiKeys={engine.apiKeys} setActiveView={engine.setActiveView}
+            outputPath={engine.outputPath} setOutputPath={engine.setOutputPath} aspectRatio={engine.aspectRatio} setAspectRatio={engine.setAspectRatio}
+            resolution={engine.resolution} setResolution={engine.setResolution} bitrate={engine.bitrate} setBitrate={engine.setBitrate}
+            activeTab={engine.activeTab} setActiveTab={engine.setActiveTab} script={engine.script} setScript={engine.setScript}
+            url={engine.url} setUrl={engine.setUrl} addToQueue={engine.addToQueue} queue={engine.queue} isProcessing={engine.isProcessing}
+            processQueueSequentially={engine.processQueueSequentially} deleteQueueItem={engine.deleteQueueItem} clearQueue={engine.clearQueue}
+            encoder={engine.encoder} setEncoder={engine.setEncoder} useSubtitles={engine.useSubtitles} setUseSubtitles={engine.setUseSubtitles}
+            defaultVoiceId={engine.defaultVoiceId} setDefaultVoiceId={engine.setDefaultVoiceId} ttsProvider={engine.ttsProvider} setTtsProvider={engine.setTtsProvider}
+            toggleItemSubtitle={engine.toggleItemSubtitle} toggleItemEncoder={engine.toggleItemEncoder} changeItemVoice={engine.changeItemVoice}
+            voicesList={engine.elevenLabsVoices}
           />
         )}
-      </main>
+
+        {/* TAB 2: GIAO DIỆN KHÔNG GIAN CẤU HÌNH API */}
+        {engine.activeView === 'api' && (
+          <ApiView 
+            apiKeys={engine.apiKeys}
+            setApiKeys={engine.setApiKeys}
+            handleSaveKeys={engine.handleSaveKeys}
+            keySaveStatus={engine.keySaveStatus}
+          />
+        )}
+        
+      </div>
     </div>
   );
 }

@@ -8,9 +8,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::ai::process_script_with_ai,
             commands::video::render_video_project,
-            commands::video::open_exported_video, // Đăng ký tính năng kích mở file tại đây
+            commands::video::open_exported_video,
             commands::media::generate_audio,
-            commands::media::prepare_scene_image
+            commands::media::prepare_hybrid_scene_media // 🎯 ĐÃ FIX: Chỉ giữ lại duy nhất hàm lai ghép mới này, loại bỏ hoàn toàn hàm cũ
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
